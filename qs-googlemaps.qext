@@ -1,0 +1,13 @@
+{
+	"name" : "QS Google Maps",
+	"description" : "Qlik Sense Google Maps Implementation",
+	"icon" : "map",
+	"type" : "visualization",
+	"version": "1.0",
+	"author" : "Ron Scott",
+	"homepage" : "https://github.com/rscott14/qs-googlemaps",
+	"keywords" : "qlik-sense, visualization",
+	"license" : "",
+	"repository" : "https://github.com/rscott14/qs-googlemaps",
+    "dependencies" : { "qlik-sense" : ">=3.1.x" }
+}
