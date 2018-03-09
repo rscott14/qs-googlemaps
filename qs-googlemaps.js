@@ -155,6 +155,17 @@ function($) {'use strict';
 	};
 });
 
+function getUniqueText(data, index){
+	var uniqueNames = [];
+	for(i = 0; i< data.length; i++){    
+		if(uniqueNames.indexOf(data[i][index].qText) === -1){
+			uniqueNames.push(data[i][index].qText);        
+		}        
+	}
+	return uniqueNames;
+}
+
+
 function initMap(b2iConfig) {
 
 	var mapID = b2iConfig.mapID;
@@ -169,7 +180,7 @@ function initMap(b2iConfig) {
 	var mCenter = ((b2iConfig.centerPoint !== "")? JSON.parse(b2iConfig.centerPoint) : chicago);
 	var zoom = ((b2iConfig.zoom !== "")? b2iConfig.zoom : 4);;
 
-	//Build the Map
+	//Build the Map ** Opportunity to cut down on GMap costs by only creating new map when dimensions of window change.
 	console.log('initMap: map_' + mapID );
 	console.log('element:' + document.getElementById('map_' + mapID));
 	var map = new google.maps.Map(document.getElementById('map_' + mapID), {
@@ -187,100 +198,142 @@ function initMap(b2iConfig) {
 		console.log("Measures: " + value.qFallbackTitle);
 	});
 
+	var measureLength = hCube.qMeasureInfo.length;
+	var dimLength = hCube.qDimensionInfo.length;
+
 	var mapData = [];
 	var lastrow = 0;
-	
-	//Cycle through hypercube rows.
-	$.each(hCube.qDataPages[0].qMatrix, function(rownum, row) {
-		lastrow = rownum;
 
-		//Cycle through hypercube columns
-		$.each(row, function (key, cell) {
-			// console.log("Key: " + key);
-			// console.log("Cell: " + JSON.stringify(cell));
+	//Geopoint Regular Expression match Format: [-#.#,-#.#]
+	var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
 
-			debugger;
-			//Geopoint Regular Expression match Format: [-#.#,-#.#]
-			var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
+	//Loop through the dimensions and create markers
+	for (let i = 0; i < dimLength; i++) {
 
-			//Switch for Map Type.
-			switch (b2iConfig.mapType) {
-				case "marker":
-					
-					if (key === 0 && cell.qText.match(re)){ //The Dimension must be a geopoint
-						// parse the Qlik Geopoint string into an array of lat, long.
-						var coords = JSON.parse(cell.qText);
+		//Only create a single unique marker
+		var uniques = getUniqueText(hCube.qDataPages[0].qMatrix,i);
+		uniques.forEach(function (marker,index){
+			try {
 
-						// createMarker(coords,map);
-						createMarker(coords,map);
+				var markerObj = {};
+				if(marker.match(re)){
+					var array = JSON.parse(marker);
+					markerObj.lat = Number(array[0]);
+					markerObj.lng = Number(array[1]);
+				} else {
+					markerObj = JSON.parse(marker);
+				}
 
-					
-					} else if (key === 1 && cell.qNum !== NaN){	// The Measure must be a numeric
-						console.log('Skip if a measure');
-					} else {
-						//handle the exception
-						console.log("Dimension one is not a geopoint or the Measure is not a numeric value.");
+				//Do I need to validate formating?
+				markerObj.config = b2iConfig;
+				markerObj.map = map;
 
-					}
-					break;
-			
-				case "heatmap":
-					if (key === 0 && cell.qText.match(re)){ //The Dimension must be a geopoint
-						// parse the Qlik Geopoint string into an array of lat, long.
-						var coords = JSON.parse(cell.qText);
-		
-						// createMarker(coords,map);
-						mapData.push({location:new google.maps.LatLng(coords[0], coords[1])});
-		
-						//Key of 1 is a Measure
-					} else if (key === 1 && cell.qNum !== NaN){	// The Measure must be a numeric
-						// Adding large amounts of data at a single location.Rendering a single WeightedLocation object 
-						// with a weight of 1000 will be faster than rendering 1000 LatLng objects.
-						// potentially use measures as weight.  Could aggregate the points and round the geolocations.
-						console.log('Attaching the Measure as a weighted datapoint. ');
-						// heatmapData[heatmapData.length-1].weight = Math.pow(2,cell.qNum);
-						mapData[mapData.length-1].weight = cell.qNum;
-						// console.log(heatmapData[heatmapData.length - 1]);
-		
-					} else {
-						//handle the exception
-						console.log("Dimension one is not a geopoint or the Measure is not a numeric value.");
-		
-					}
-
-					break;
-				default:
-					console.log("No Data Found");
-					break;
+				switch (b2iConfig.mapType) {
+					case "marker":
+						createMarker(markerObj);
+						break;
+				
+					case "heatmap":
+						//Needs rework - will not work.
+						// mapData.push({location:new google.maps.LatLng(coords[0], coords[1])});
+						// mapData[mapData.length-1].weight = cell.qNum
+						break;
+					default:
+						break;
+				}
+				
+			} catch (error) {
+				console.log("Dimension is not a Google Marker object or GeoPoint");
 			}
-			//**Here can check qFallbackTitle for the "Name" that is specified in the Label and parse for Text like GEO?
-			//GeoPoint should be the first Dimension check and plot
-
 		});
-	});
-
-	switch (b2iConfig.mapType) {
-		case "heatmap":
-			createHeatmap(mapData, map);
-			break;
-		default:
-			break;
 	}
+	
+// 	var markerCluster = new MarkerClusterer(map, markers,
+// 		{imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
+//   }
+
+	//Cycle through hypercube rows.
+	// $.each(hCube.qDataPages[0].qMatrix, function(rownum, row) {
+	// 	lastrow = rownum;
+
+	// 	$.each(row, function (key, cell) {
+	// 		// console.log("Key: " + key);
+	// 		// console.log("Cell: " + JSON.stringify(cell));
+	// 	});
+	// });
+
+
 	
 }
 
-function createMarker(coords,map){
-	var latLng = { lat: Number(coords[0]), lng: Number(coords[1])};
-	//console.log(latLng);
-	// console.log(map);
+function createMarker(markerObj){
+
+	//Need to add logic to parse the markerObj
+	debugger;
+	var gMarker = {};
+	gMarker.map = markerObj.map;
+
+	//If geoPoint Exists parse it into lat an long.
+	if(markerObj.geoPoint) {
+		gMarker.position = JSON.parse(markerObj.geoPoint);
+	} else {
+		gMarker.position = { lat: Number(markerObj.lat), lng: Number(markerObj.lng)};
+	}
+
+	//If title exists populate the title
+	if(markerObj.title){
+		gMarker.title = markerObj.title;
+	}
+
+	if(markerObj.icon){
+		gMarker.icon = markerObj.icon;
+	}
 
 	//Create Google Marker
-	var marker = new google.maps.Marker({
-		position: latLng,
-		map: map,
+	var marker = new google.maps.Marker(gMarker);
+
+	if (markerObj.circleRadius){
+		var markerCircle = new google.maps.Circle({
+			center: gMarker.position,
+			strokeColor: '#FF0000',
+			strokeOpacity: 0.8,
+			strokeWeight: 2,
+			fillColor: '#FF0000',
+			fillOpacity: 0.35,
+			map: gMarker.map,
+			radius: markerObj.circleRadius
+		});
+	}
+
+	var contentString = '<div id="content">'+
+	'<div id="siteNotice">'+
+	'</div>'+
+	'<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
+	'<div id="bodyContent">'+
+	'<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
+	'sandstone rock formation in the southern part of the '+
+	'Northern Territory, central Australia. It lies 335&#160;km (208&#160;mi) '+
+	'south west of the nearest large town, Alice Springs; 450&#160;km '+
+	'(280&#160;mi) by road. Kata Tjuta and Uluru are the two major '+
+	'features of the Uluru - Kata Tjuta National Park. Uluru is '+
+	'sacred to the Pitjantjatjara and Yankunytjatjara, the '+
+	'Aboriginal people of the area. It has many springs, waterholes, '+
+	'rock caves and ancient paintings. Uluru is listed as a World '+
+	'Heritage Site.</p>'+
+	'<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
+	'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
+	'(last visited June 22, 2009).</p>'+
+	'</div>'+
+	'</div>';
+
+	var infowindow = new google.maps.InfoWindow({
+		content:contentString
 	});
-	// Adding title property will cause hover of title
-	// title: "Hello World!"
+
+	marker.addListener('click',function(){
+		infowindow.open(gMarker.map, marker);
+	})
+
 }
 
 function createHeatmap(heatmapData, map){
