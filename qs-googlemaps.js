@@ -1,4 +1,4 @@
-
+//Created by Ron Scott Test
 define([
 	"jquery"
 	], 
@@ -10,7 +10,7 @@ function($) {'use strict';
 				qDimensions : [],
 				qMeasures : [],
 				qInitialDataFetch : [{
-					qWidth : 2,
+					qWidth : 10,
 					qHeight : 1000
 				}]
 			},
@@ -22,7 +22,7 @@ function($) {'use strict';
 				dimensions : {
 					uses : "dimensions",
 					min : 1,
-					max : 1
+					max : 10
 				},
 				measures : {
 					uses : "measures",
@@ -59,6 +59,40 @@ function($) {'use strict';
 								label: "Off"
 							}],
 							defaultValue: true
+						},
+						mapTypeFlag: {
+							type: "string",
+							component: "dropdown",
+							label: "Map Type",
+							ref: "properties.mapType",
+							options: [{
+								value: "marker",
+								label: "Markers"
+							}, {
+								value: "heatmap",
+								label: "Heatmap"
+							}],
+							defaultValue: "marker"
+						},
+						mapSettings: {
+							type: "items",
+							label: "Map Settings",
+							items: {
+								zoom: {
+									ref: "properties.zoom",
+									label: "Zoom Level (Default: 4)",
+									type: "integer",
+									expression: "optional",
+									defaultValue: 4
+								},
+								centerPoint: {
+									ref: "properties.centerPoint",
+									label: "Center GeoPoint",
+									type: "string",
+									expression: "optional",
+									defaultValue: "{lat:41.85, lng: -87.64999999999998}"
+								}
+							}
 						}
 					}
 				}
@@ -72,25 +106,33 @@ function($) {'use strict';
 			var self = this;
 
 //			console.log('HyperCube: ' + layout.qHyperCube);
-			var hCube = layout.qHyperCube;
-			var mapID = layout.qInfo.qId;
-			var disFlag = layout.properties.heatmapDissipation;
+			var b2iConfig = {
+				"hCube" : layout.qHyperCube,
+				"mapID" : layout.qInfo.qId,
+				"disFlag" : layout.properties.heatmapDissipation,
+				"mapType" : layout.properties.mapType,
+				"centerPoint" : layout.properties.centerPoint,
+				"zoom" : layout.properties.zoom
+			};
+
+
 			
-			console.log('Dissipation?:' + disFlag);
-
+			console.log("MapType?:" + b2iConfig.mapType);
+			console.log('Dissipation?:' + b2iConfig.disFlag);
 			console.log('Google Object = ' + typeof window.google);
-
 			// Clear out the element for refresh.
-			console.log('paint: map_' + mapID);
+			console.log('paint: map_' + b2iConfig.mapID);
+
+			//Clear the map and redraw
 			$element.empty();
 			
 			//Check for API Key existence
 			if (typeof layout.properties.apikey === 'undefined' || layout.properties.apikey === ''){
-				var html = '<div style="height:100%" id="map_' + mapID + '"><br><b>Please Enter your Google Maps API Key in the Settings Panel</b><br></div>';
+				var html = '<div style="height:100%" id="map_' + b2iConfig.mapID + '"><br><b>Please Enter your Google Maps API Key in the Settings Panel</b><br></div>';
 				$element.html(html);
 				return; // Do not continue with map making.
 			} else {
-				var html = '<div style="height:100%" id="map_' + mapID + '"></div>';
+				var html = '<div style="height:100%" id="map_' + b2iConfig.mapID + '"></div>';
 				$element.html(html);
 			}
 					
@@ -100,32 +142,40 @@ function($) {'use strict';
 				$.getScript("https://maps.googleapis.com/maps/api/js?libraries=visualization&key=" + layout.properties.apikey)
 					.done(function (script, textStatus) {
 						console.log(textStatus);
-						initMap(hCube, mapID);
+						initMap(b2iConfig);
 					})
 					.fail(function (jqxhr, settings, exception) {
-						$("#map_" + mapID).text("Error Loading Google");
+						$("#map_" + b2iConfig.mapID).text("Error Loading Google");
 					});
 			} else {
 				console.log("Skipping Google API load (already loaded)...");
-				initMap(hCube, mapID);
+				initMap(b2iConfig);
 			}
 		}
 	};
 });
 
-function initMap(hCube, mapID) {
+function initMap(b2iConfig) {
+
+	var mapID = b2iConfig.mapID;
+	var hCube = b2iConfig.hCube;
+
+	debugger;
 	var uluru = {lat: -25.363, lng: 131.044};
 	var chicago = {lat:41.85, lng: -87.64999999999998};
 	var us = {lat:37.09024, lng:-95.712891}; //?
 	var kansas = {lat:39, lng:-98};
+
+	var mCenter = ((b2iConfig.centerPoint !== "")? JSON.parse(b2iConfig.centerPoint) : chicago);
+	var zoom = ((b2iConfig.zoom !== "")? b2iConfig.zoom : 4);;
 
 	//Build the Map
 	console.log('initMap: map_' + mapID );
 	console.log('element:' + document.getElementById('map_' + mapID));
 	var map = new google.maps.Map(document.getElementById('map_' + mapID), {
 		// var map = new google.maps.Map(document.getElementById('map'), {
-		zoom: 4, //4
-		center: chicago
+		"zoom": zoom, //4
+		"center": mCenter
 	});
 
 	// //render titles
@@ -137,7 +187,7 @@ function initMap(hCube, mapID) {
 		console.log("Measures: " + value.qFallbackTitle);
 	});
 
-	var heatmapData = [];
+	var mapData = [];
 	var lastrow = 0;
 	
 	//Cycle through hypercube rows.
@@ -149,35 +199,74 @@ function initMap(hCube, mapID) {
 			// console.log("Key: " + key);
 			// console.log("Cell: " + JSON.stringify(cell));
 
+			debugger;
 			//Geopoint Regular Expression match Format: [-#.#,-#.#]
 			var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
 
-			//GeoPoint should be the first Dimension check and plot
-			if (key === 0 && cell.qText.match(re)){ //The Dimension must be a geopoint
-				// parse the Qlik Geopoint string into an array of lat, long.
-				var coords = JSON.parse(cell.qText);
+			//Switch for Map Type.
+			switch (b2iConfig.mapType) {
+				case "marker":
+					
+					if (key === 0 && cell.qText.match(re)){ //The Dimension must be a geopoint
+						// parse the Qlik Geopoint string into an array of lat, long.
+						var coords = JSON.parse(cell.qText);
 
-				// createMarker(coords,map);
-				heatmapData.push({location:new google.maps.LatLng(coords[0], coords[1])});
+						// createMarker(coords,map);
+						createMarker(coords,map);
 
-			} else if (key === 1 && cell.qNum !== NaN){	// The Measure must be a numeric
-				// Adding large amounts of data at a single location.Rendering a single WeightedLocation object 
-				// with a weight of 1000 will be faster than rendering 1000 LatLng objects.
-				// potentially use measures as weight.  Could aggregate the points and round the geolocations.
-				console.log('Attaching the Measure as a weighted datapoint. ');
-				// heatmapData[heatmapData.length-1].weight = Math.pow(2,cell.qNum);
-				heatmapData[heatmapData.length-1].weight = cell.qNum;
-				// console.log(heatmapData[heatmapData.length - 1]);
+					
+					} else if (key === 1 && cell.qNum !== NaN){	// The Measure must be a numeric
+						console.log('Skip if a measure');
+					} else {
+						//handle the exception
+						console.log("Dimension one is not a geopoint or the Measure is not a numeric value.");
 
-			} else {
-				//handle the exception
-				console.log("Dimension one is not a geopoint or the Measure is not a numeric value.");
+					}
+					break;
+			
+				case "heatmap":
+					if (key === 0 && cell.qText.match(re)){ //The Dimension must be a geopoint
+						// parse the Qlik Geopoint string into an array of lat, long.
+						var coords = JSON.parse(cell.qText);
+		
+						// createMarker(coords,map);
+						mapData.push({location:new google.maps.LatLng(coords[0], coords[1])});
+		
+						//Key of 1 is a Measure
+					} else if (key === 1 && cell.qNum !== NaN){	// The Measure must be a numeric
+						// Adding large amounts of data at a single location.Rendering a single WeightedLocation object 
+						// with a weight of 1000 will be faster than rendering 1000 LatLng objects.
+						// potentially use measures as weight.  Could aggregate the points and round the geolocations.
+						console.log('Attaching the Measure as a weighted datapoint. ');
+						// heatmapData[heatmapData.length-1].weight = Math.pow(2,cell.qNum);
+						mapData[mapData.length-1].weight = cell.qNum;
+						// console.log(heatmapData[heatmapData.length - 1]);
+		
+					} else {
+						//handle the exception
+						console.log("Dimension one is not a geopoint or the Measure is not a numeric value.");
+		
+					}
 
+					break;
+				default:
+					console.log("No Data Found");
+					break;
 			}
+			//**Here can check qFallbackTitle for the "Name" that is specified in the Label and parse for Text like GEO?
+			//GeoPoint should be the first Dimension check and plot
+
 		});
 	});
 
-	createHeatmap(heatmapData, map);
+	switch (b2iConfig.mapType) {
+		case "heatmap":
+			createHeatmap(mapData, map);
+			break;
+		default:
+			break;
+	}
+	
 }
 
 function createMarker(coords,map){
