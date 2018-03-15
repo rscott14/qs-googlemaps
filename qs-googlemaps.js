@@ -171,7 +171,7 @@ function initMap(b2iConfig) {
 	var mapID = b2iConfig.mapID;
 	var hCube = b2iConfig.hCube;
 
-	debugger;
+	//debugger;
 	var uluru = {lat: -25.363, lng: 131.044};
 	var chicago = {lat:41.85, lng: -87.64999999999998};
 	var us = {lat:37.09024, lng:-95.712891}; //?
@@ -211,7 +211,8 @@ function initMap(b2iConfig) {
 	for (let i = 0; i < dimLength; i++) {
 
 		//Only create a single unique marker
-		var uniques = getUniqueText(hCube.qDataPages[0].qMatrix,i);
+		var uniques = getUniqueText(hCube.qDataPages[0].qMatrix,i);	
+		var heatmapMarkers = []; //Array to hold all markers for heatmap.
 		uniques.forEach(function (marker,index){
 			try {
 
@@ -233,10 +234,15 @@ function initMap(b2iConfig) {
 						createMarker(markerObj);
 						break;
 				
-					case "heatmap":
-						//Needs rework - will not work.
-						// mapData.push({location:new google.maps.LatLng(coords[0], coords[1])});
-						// mapData[mapData.length-1].weight = cell.qNum
+					case "heatmap":	
+						//Todo				
+						// mapData[mapData.length-1].weight = cell.qNum //Update with Measure data for a weight.
+						heatmapMarkers.push({location:new google.maps.LatLng(markerObj.lat, markerObj.lng)});						
+						break;	
+
+					case "cluster":
+						//Todo
+						// See Google Documentation for Cluster implementation: https://developers.google.com/maps/documentation/javascript/marker-clustering
 						break;
 					default:
 						break;
@@ -246,6 +252,16 @@ function initMap(b2iConfig) {
 				console.log("Dimension is not a Google Marker object or GeoPoint");
 			}
 		});
+
+		if(b2iConfig.mapType === "heatmap"){
+			var heatmapObj = {
+				"heatmapMarkers" : heatmapMarkers,
+				"config" : b2iConfig,
+				"map" : map
+			};
+
+			createHeatmap(heatmapObj);
+		}
 	}
 	
 // 	var markerCluster = new MarkerClusterer(map, markers,
@@ -268,8 +284,7 @@ function initMap(b2iConfig) {
 
 function createMarker(markerObj){
 
-	//Need to add logic to parse the markerObj
-	debugger;
+	// debugger;
 	var gMarker = {};
 	gMarker.map = markerObj.map;
 
@@ -289,8 +304,16 @@ function createMarker(markerObj){
 		gMarker.icon = markerObj.icon;
 	}
 
+	if(markerObj.label) {
+		gMarker.label = markerObj.label;
+	}
+
 	//Create Google Marker
 	var marker = new google.maps.Marker(gMarker);
+
+	if(markerObj.bounce) {
+		marker.setAnimation(google.maps.Animation.BOUNCE);
+	}
 
 	if (markerObj.circleRadius){
 		var markerCircle = new google.maps.Circle({
@@ -299,51 +322,60 @@ function createMarker(markerObj){
 			strokeOpacity: 0.8,
 			strokeWeight: 2,
 			fillColor: '#FF0000',
-			fillOpacity: 0.35,
+			fillOpacity: 0.15,
 			map: gMarker.map,
 			radius: markerObj.circleRadius
 		});
 	}
 
-	var contentString = '<div id="content">'+
-	'<div id="siteNotice">'+
-	'</div>'+
-	'<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
-	'<div id="bodyContent">'+
-	'<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
-	'sandstone rock formation in the southern part of the '+
-	'Northern Territory, central Australia. It lies 335&#160;km (208&#160;mi) '+
-	'south west of the nearest large town, Alice Springs; 450&#160;km '+
-	'(280&#160;mi) by road. Kata Tjuta and Uluru are the two major '+
-	'features of the Uluru - Kata Tjuta National Park. Uluru is '+
-	'sacred to the Pitjantjatjara and Yankunytjatjara, the '+
-	'Aboriginal people of the area. It has many springs, waterholes, '+
-	'rock caves and ancient paintings. Uluru is listed as a World '+
-	'Heritage Site.</p>'+
-	'<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
-	'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
-	'(last visited June 22, 2009).</p>'+
-	'</div>'+
-	'</div>';
+	var contentString = '';
+	if(markerObj.contentString){
+		contentString = markerObj.contentString;
 
-	var infowindow = new google.maps.InfoWindow({
-		content:contentString
-	});
-
-	marker.addListener('click',function(){
-		infowindow.open(gMarker.map, marker);
-	})
+		var infowindow = new google.maps.InfoWindow({
+			content:contentString
+		});
+	
+		marker.addListener('click',function(){
+			infowindow.open(gMarker.map, marker);
+		})
+	}
+	// Example Popup--------------------------------------
+	// var contentString = '<div id="content">'+
+	// '<div id="siteNotice">'+
+	// '</div>'+
+	// '<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
+	// '<div id="bodyContent">'+
+	// '<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
+	// 'sandstone rock formation in the southern part of the '+
+	// 'Northern Territory, central Australia. It lies 335&#160;km (208&#160;mi) '+
+	// 'south west of the nearest large town, Alice Springs; 450&#160;km '+
+	// '(280&#160;mi) by road. Kata Tjuta and Uluru are the two major '+
+	// 'features of the Uluru - Kata Tjuta National Park. Uluru is '+
+	// 'sacred to the Pitjantjatjara and Yankunytjatjara, the '+
+	// 'Aboriginal people of the area. It has many springs, waterholes, '+
+	// 'rock caves and ancient paintings. Uluru is listed as a World '+
+	// 'Heritage Site.</p>'+
+	// '<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
+	// 'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
+	// '(last visited June 22, 2009).</p>'+
+	// '</div>'+
+	// '</div>';
 
 }
 
-function createHeatmap(heatmapData, map){
-	// console.log(heatmapData);
+function createHeatmap(heatmapObj){
+	// console.log(heatmapObj);
 
+	// See Google Heatmap Documentation for options: https://developers.google.com/maps/documentation/javascript/examples/layer-heatmap
 	var heatmap = new google.maps.visualization.HeatmapLayer({
-		data: heatmapData,
-		dissipating: true,
+		data: heatmapObj.heatmapMarkers,
+		dissipating: heatmapObj.config.disFlag,
 		// radius:100,
-		map: map
+		// gradient:,
+		// maxIntensity: ,
+		// opacity: , //expressed as number between 0 - 1.
+		map: heatmapObj.map
 	});
 
 }
