@@ -1,4 +1,10 @@
 //Created by Ron Scott Test
+
+// Todo: 
+// Clusters
+// Heatmap weight based on measures
+// 
+
 define([
 	"jquery"
 	], 
@@ -178,7 +184,7 @@ function initMap(b2iConfig) {
 	var kansas = {lat:39, lng:-98};
 
 	var mCenter = ((b2iConfig.centerPoint !== "")? JSON.parse(b2iConfig.centerPoint) : chicago);
-	var zoom = ((b2iConfig.zoom !== "")? b2iConfig.zoom : 4);;
+	var zoom = ((b2iConfig.zoom !== "")? b2iConfig.zoom : 4);
 
 	//Build the Map ** Opportunity to cut down on GMap costs by only creating new map when dimensions of window change.
 	console.log('initMap: map_' + mapID );
@@ -283,7 +289,7 @@ function initMap(b2iConfig) {
 }
 
 function createMarker(markerObj){
-
+	// Reference Google Marker Configurations: https://developers.google.com/maps/documentation/javascript/markers
 	// debugger;
 	var gMarker = {};
 	gMarker.map = markerObj.map;
