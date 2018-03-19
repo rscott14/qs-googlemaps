@@ -1,0 +1,33 @@
+{
+    "deploy": {
+        "packages": [
+            {
+                "name": "Version 2.3.4",
+                "description": "Package version 2.3.4",
+                "files": [
+                    "/*.js",
+                    "/*.qext",
+                    "/*.png",
+                    "/*.wbl"                    
+                ],
+                "exclude": [
+                    "tests/**",
+                    ".gitignore/**",
+                    ".git/**",
+                    ".vscode/**",
+                    "archive/**"
+                ],
+                "deployOnSave": false //change to true if auto
+            }
+        ],
+
+        "targets": [
+            {
+                "type": "local",
+                "name": "Qlik Extensions Folder",
+                "description": "A SMB shared network folder",
+                "dir": "C:\\Users\\COMISRSCOT\\Documents\\Qlik\\Sense\\Extensions\\B2I-GoogleMaps"
+            },
+        ]
+    }
+}

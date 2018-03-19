@@ -1,0 +1,53 @@
+https://stackoverflow.com/questions/6048975/google-maps-v3-how-to-calculate-the-zoom-level-for-a-given-bounds
+
+//Geo JSON for Google Maps API
+
+{
+    "lat": lat,
+    "lng": lng,
+    // Optional
+    //"geoPoint":
+    "icon":"http://icons.iconarchive.com/icons/icons-land/vista-map-markers/32/Map-Marker-Marker-Outside-Pink-icon.png",
+    "title":"",
+    "circleRadius" : 90
+    // "contentString" : '<div id="content">'+
+	// '<div id="siteNotice">'+
+	// '</div>'+
+	// '<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
+	// '<div id="bodyContent">'+
+	// '<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
+	// 'sandstone rock formation in the southern part of the '+
+	// 'Northern Territory, central Australia. It lies 335&#160;km (208&#160;mi) '+
+	// 'south west of the nearest large town, Alice Springs; 450&#160;km '+
+	// '(280&#160;mi) by road. Kata Tjuta and Uluru are the two major '+
+	// 'features of the Uluru - Kata Tjuta National Park. Uluru is '+
+	// 'sacred to the Pitjantjatjara and Yankunytjatjara, the '+
+	// 'Aboriginal people of the area. It has many springs, waterholes, '+
+	// 'rock caves and ancient paintings. Uluru is listed as a World '+
+	// 'Heritage Site.</p>'+
+	// '<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
+	// 'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
+	// '(last visited June 22, 2009).</p>'+
+	// '</div>'+
+	// '</div>'
+}
+
+'{"lat":' &  GoogleLat & ',"lng":' &  GoogleLng & ',"icon":"http://icons.iconarchive.com/icons/icons-land/vista-map-markers/32/Map-Marker-Marker-Outside-Pink-icon.png","title":"' &  Name & '","circleRadius" : 90}'
+
+
+Restaurant:='{"lat":' &  GoogleLat & ',"lng":' &  GoogleLng & ',"title":"' &  Name & '","circleRadius" : 90}'
+Restaurant with popup: ='{"lat":' &  GoogleLat & ',"lng":' &  GoogleLng & ',"title":"' &  Name & '","contentString":"<div id=\"content\"><div id=\"siteNotice\"></div><h1 id=\"firstHeading\" class=\"firstHeading\">'& Name & '</h1><div id=\"bodyContent\"><p><b>'& Name &'</b><br>Micheline Guide Stars: '& Stars & ' <br> Price Range: '&Prices&'</p></div></div>"}'
+Wine: ='{"lat":' &  ScanLat & ',"lng":' &  ScanLng & ',"icon":"http://icons.iconarchive.com/icons/icons-land/vista-map-markers/32/Map-Marker-Marker-Outside-Pink-icon.png","title":"' &  ScanID & '}'
+
+
+http://icons.iconarchive.com/icons/icons-land/vista-map-markers/32/Map-Marker-Ball-Pink-icon.png
+
+
+='{"lat":' &  GoogleLat & ',"lng":' &  GoogleLng & ',"title":"' &  Name & '",contentString:"<div id=\"content\"><div id="siteNotice"></div><h1 id=\"firstHeading\" class=\"firstHeading\">'& Name & '</h1><div id=\"bodyContent\"><p><b>'& Name &'</b><br>Micheline Guide Stars: '& Stars & ' <br> Price Range: '&Prices&'</p></div></div>\"}'
+
+
+{"lat":38.9083688,
+    "lng":-77.0242075,
+    "title":"Chercher",
+    "contentString":"<div id=\"content\"><div id=\"siteNotice\"></div><h1 id=\"firstHeading\" class=\"firstHeading\">Chercher</h1><div id=\"bodyContent\"><p><b>Chercher</b><br>Micheline Guide Stars: 1 <br> Price Range: From $13to $24</p></div></div>"
+    }

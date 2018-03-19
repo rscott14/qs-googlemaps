@@ -1,3 +1,9 @@
+//Created by Ron Scott Test
+
+// Todo: 
+// Clusters
+// Heatmap weight based on measures
+// 
 
 define([
 	"jquery"
@@ -10,7 +16,7 @@ function($) {'use strict';
 				qDimensions : [],
 				qMeasures : [],
 				qInitialDataFetch : [{
-					qWidth : 2,
+					qWidth : 10,
 					qHeight : 1000
 				}]
 			},
@@ -22,7 +28,7 @@ function($) {'use strict';
 				dimensions : {
 					uses : "dimensions",
 					min : 1,
-					max : 1
+					max : 10
 				},
 				measures : {
 					uses : "measures",
@@ -59,6 +65,40 @@ function($) {'use strict';
 								label: "Off"
 							}],
 							defaultValue: true
+						},
+						mapTypeFlag: {
+							type: "string",
+							component: "dropdown",
+							label: "Map Type",
+							ref: "properties.mapType",
+							options: [{
+								value: "marker",
+								label: "Markers"
+							}, {
+								value: "heatmap",
+								label: "Heatmap"
+							}],
+							defaultValue: "marker"
+						},
+						mapSettings: {
+							type: "items",
+							label: "Map Settings",
+							items: {
+								zoom: {
+									ref: "properties.zoom",
+									label: "Zoom Level (Default: 4)",
+									type: "integer",
+									expression: "optional",
+									defaultValue: 4
+								},
+								centerPoint: {
+									ref: "properties.centerPoint",
+									label: "Center GeoPoint",
+									type: "string",
+									expression: "optional",
+									defaultValue: "{lat:41.85, lng: -87.64999999999998}"
+								}
+							}
 						}
 					}
 				}
@@ -72,25 +112,33 @@ function($) {'use strict';
 			var self = this;
 
 //			console.log('HyperCube: ' + layout.qHyperCube);
-			var hCube = layout.qHyperCube;
-			var mapID = layout.qInfo.qId;
-			var disFlag = layout.properties.heatmapDissipation;
+			var b2iConfig = {
+				"hCube" : layout.qHyperCube,
+				"mapID" : layout.qInfo.qId,
+				"disFlag" : layout.properties.heatmapDissipation,
+				"mapType" : layout.properties.mapType,
+				"centerPoint" : layout.properties.centerPoint,
+				"zoom" : layout.properties.zoom
+			};
+
+
 			
-			console.log('Dissipation?:' + disFlag);
-
+			console.log("MapType?:" + b2iConfig.mapType);
+			console.log('Dissipation?:' + b2iConfig.disFlag);
 			console.log('Google Object = ' + typeof window.google);
-
 			// Clear out the element for refresh.
-			console.log('paint: map_' + mapID);
+			console.log('paint: map_' + b2iConfig.mapID);
+
+			//Clear the map and redraw
 			$element.empty();
 			
 			//Check for API Key existence
 			if (typeof layout.properties.apikey === 'undefined' || layout.properties.apikey === ''){
-				var html = '<div style="height:100%" id="map_' + mapID + '"><br><b>Please Enter your Google Maps API Key in the Settings Panel</b><br></div>';
+				var html = '<div style="height:100%" id="map_' + b2iConfig.mapID + '"><br><b>Please Enter your Google Maps API Key in the Settings Panel</b><br></div>';
 				$element.html(html);
 				return; // Do not continue with map making.
 			} else {
-				var html = '<div style="height:100%" id="map_' + mapID + '"></div>';
+				var html = '<div style="height:100%" id="map_' + b2iConfig.mapID + '"></div>';
 				$element.html(html);
 			}
 					
@@ -100,32 +148,51 @@ function($) {'use strict';
 				$.getScript("https://maps.googleapis.com/maps/api/js?libraries=visualization&key=" + layout.properties.apikey)
 					.done(function (script, textStatus) {
 						console.log(textStatus);
-						initMap(hCube, mapID);
+						initMap(b2iConfig);
 					})
 					.fail(function (jqxhr, settings, exception) {
-						$("#map_" + mapID).text("Error Loading Google");
+						$("#map_" + b2iConfig.mapID).text("Error Loading Google");
 					});
 			} else {
 				console.log("Skipping Google API load (already loaded)...");
-				initMap(hCube, mapID);
+				initMap(b2iConfig);
 			}
 		}
 	};
 });
 
-function initMap(hCube, mapID) {
+function getUniqueText(data, index){
+	var uniqueNames = [];
+	for(i = 0; i< data.length; i++){    
+		if(uniqueNames.indexOf(data[i][index].qText) === -1){
+			uniqueNames.push(data[i][index].qText);        
+		}        
+	}
+	return uniqueNames;
+}
+
+
+function initMap(b2iConfig) {
+
+	var mapID = b2iConfig.mapID;
+	var hCube = b2iConfig.hCube;
+
+	//debugger;
 	var uluru = {lat: -25.363, lng: 131.044};
 	var chicago = {lat:41.85, lng: -87.64999999999998};
 	var us = {lat:37.09024, lng:-95.712891}; //?
 	var kansas = {lat:39, lng:-98};
 
-	//Build the Map
+	var mCenter = ((b2iConfig.centerPoint !== "")? JSON.parse(b2iConfig.centerPoint) : chicago);
+	var zoom = ((b2iConfig.zoom !== "")? b2iConfig.zoom : 4);
+
+	//Build the Map ** Opportunity to cut down on GMap costs by only creating new map when dimensions of window change.
 	console.log('initMap: map_' + mapID );
 	console.log('element:' + document.getElementById('map_' + mapID));
 	var map = new google.maps.Map(document.getElementById('map_' + mapID), {
 		// var map = new google.maps.Map(document.getElementById('map'), {
-		zoom: 4, //4
-		center: chicago
+		"zoom": zoom, //4
+		"center": mCenter
 	});
 
 	// //render titles
@@ -137,71 +204,184 @@ function initMap(hCube, mapID) {
 		console.log("Measures: " + value.qFallbackTitle);
 	});
 
-	var heatmapData = [];
+	var measureLength = hCube.qMeasureInfo.length;
+	var dimLength = hCube.qDimensionInfo.length;
+
+	var mapData = [];
 	var lastrow = 0;
-	
-	//Cycle through hypercube rows.
-	$.each(hCube.qDataPages[0].qMatrix, function(rownum, row) {
-		lastrow = rownum;
 
-		//Cycle through hypercube columns
-		$.each(row, function (key, cell) {
-			// console.log("Key: " + key);
-			// console.log("Cell: " + JSON.stringify(cell));
+	//Geopoint Regular Expression match Format: [-#.#,-#.#]
+	var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
 
-			//Geopoint Regular Expression match Format: [-#.#,-#.#]
-			var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
+	//Loop through the dimensions and create markers
+	for (let i = 0; i < dimLength; i++) {
 
-			//GeoPoint should be the first Dimension check and plot
-			if (key === 0 && cell.qText.match(re)){ //The Dimension must be a geopoint
-				// parse the Qlik Geopoint string into an array of lat, long.
-				var coords = JSON.parse(cell.qText);
+		//Only create a single unique marker
+		var uniques = getUniqueText(hCube.qDataPages[0].qMatrix,i);	
+		var heatmapMarkers = []; //Array to hold all markers for heatmap.
+		uniques.forEach(function (marker,index){
+			try {
 
-				// createMarker(coords,map);
-				heatmapData.push({location:new google.maps.LatLng(coords[0], coords[1])});
+				var markerObj = {};
+				if(marker.match(re)){
+					var array = JSON.parse(marker);
+					markerObj.lat = Number(array[0]);
+					markerObj.lng = Number(array[1]);
+				} else {
+					markerObj = JSON.parse(marker);
+				}
 
-			} else if (key === 1 && cell.qNum !== NaN){	// The Measure must be a numeric
-				// Adding large amounts of data at a single location.Rendering a single WeightedLocation object 
-				// with a weight of 1000 will be faster than rendering 1000 LatLng objects.
-				// potentially use measures as weight.  Could aggregate the points and round the geolocations.
-				console.log('Attaching the Measure as a weighted datapoint. ');
-				// heatmapData[heatmapData.length-1].weight = Math.pow(2,cell.qNum);
-				heatmapData[heatmapData.length-1].weight = cell.qNum;
-				// console.log(heatmapData[heatmapData.length - 1]);
+				//Do I need to validate formating?
+				markerObj.config = b2iConfig;
+				markerObj.map = map;
 
-			} else {
-				//handle the exception
-				console.log("Dimension one is not a geopoint or the Measure is not a numeric value.");
+				switch (b2iConfig.mapType) {
+					case "marker":
+						createMarker(markerObj);
+						break;
+				
+					case "heatmap":	
+						//Todo				
+						// mapData[mapData.length-1].weight = cell.qNum //Update with Measure data for a weight.
+						heatmapMarkers.push({location:new google.maps.LatLng(markerObj.lat, markerObj.lng)});						
+						break;	
 
+					case "cluster":
+						//Todo
+						// See Google Documentation for Cluster implementation: https://developers.google.com/maps/documentation/javascript/marker-clustering
+						break;
+					default:
+						break;
+				}
+				
+			} catch (error) {
+				console.log("Dimension is not a Google Marker object or GeoPoint");
 			}
 		});
-	});
 
-	createHeatmap(heatmapData, map);
+		if(b2iConfig.mapType === "heatmap"){
+			var heatmapObj = {
+				"heatmapMarkers" : heatmapMarkers,
+				"config" : b2iConfig,
+				"map" : map
+			};
+
+			createHeatmap(heatmapObj);
+		}
+	}
+	
+// 	var markerCluster = new MarkerClusterer(map, markers,
+// 		{imagePath: 'https://developers.google.com/maps/documentation/javascript/examples/markerclusterer/m'});
+//   }
+
+	//Cycle through hypercube rows.
+	// $.each(hCube.qDataPages[0].qMatrix, function(rownum, row) {
+	// 	lastrow = rownum;
+
+	// 	$.each(row, function (key, cell) {
+	// 		// console.log("Key: " + key);
+	// 		// console.log("Cell: " + JSON.stringify(cell));
+	// 	});
+	// });
+
+
+	
 }
 
-function createMarker(coords,map){
-	var latLng = { lat: Number(coords[0]), lng: Number(coords[1])};
-	//console.log(latLng);
-	// console.log(map);
+function createMarker(markerObj){
+	// Reference Google Marker Configurations: https://developers.google.com/maps/documentation/javascript/markers
+	// debugger;
+	var gMarker = {};
+	gMarker.map = markerObj.map;
+
+	//If geoPoint Exists parse it into lat an long.
+	if(markerObj.geoPoint) {
+		gMarker.position = JSON.parse(markerObj.geoPoint);
+	} else {
+		gMarker.position = { lat: Number(markerObj.lat), lng: Number(markerObj.lng)};
+	}
+
+	//If title exists populate the title
+	if(markerObj.title){
+		gMarker.title = markerObj.title;
+	}
+
+	if(markerObj.icon){
+		gMarker.icon = markerObj.icon;
+	}
+
+	if(markerObj.label) {
+		gMarker.label = markerObj.label;
+	}
 
 	//Create Google Marker
-	var marker = new google.maps.Marker({
-		position: latLng,
-		map: map,
-	});
-	// Adding title property will cause hover of title
-	// title: "Hello World!"
+	var marker = new google.maps.Marker(gMarker);
+
+	if(markerObj.bounce) {
+		marker.setAnimation(google.maps.Animation.BOUNCE);
+	}
+
+	if (markerObj.circleRadius){
+		var markerCircle = new google.maps.Circle({
+			center: gMarker.position,
+			strokeColor: '#FF0000',
+			strokeOpacity: 0.8,
+			strokeWeight: 2,
+			fillColor: '#FF0000',
+			fillOpacity: 0.15,
+			map: gMarker.map,
+			radius: markerObj.circleRadius
+		});
+	}
+
+	var contentString = '';
+	if(markerObj.contentString){
+		contentString = markerObj.contentString;
+
+		var infowindow = new google.maps.InfoWindow({
+			content:contentString
+		});
+	
+		marker.addListener('click',function(){
+			infowindow.open(gMarker.map, marker);
+		})
+	}
+	// Example Popup--------------------------------------
+	// var contentString = '<div id="content">'+
+	// '<div id="siteNotice">'+
+	// '</div>'+
+	// '<h1 id="firstHeading" class="firstHeading">Uluru</h1>'+
+	// '<div id="bodyContent">'+
+	// '<p><b>Uluru</b>, also referred to as <b>Ayers Rock</b>, is a large ' +
+	// 'sandstone rock formation in the southern part of the '+
+	// 'Northern Territory, central Australia. It lies 335&#160;km (208&#160;mi) '+
+	// 'south west of the nearest large town, Alice Springs; 450&#160;km '+
+	// '(280&#160;mi) by road. Kata Tjuta and Uluru are the two major '+
+	// 'features of the Uluru - Kata Tjuta National Park. Uluru is '+
+	// 'sacred to the Pitjantjatjara and Yankunytjatjara, the '+
+	// 'Aboriginal people of the area. It has many springs, waterholes, '+
+	// 'rock caves and ancient paintings. Uluru is listed as a World '+
+	// 'Heritage Site.</p>'+
+	// '<p>Attribution: Uluru, <a href="https://en.wikipedia.org/w/index.php?title=Uluru&oldid=297882194">'+
+	// 'https://en.wikipedia.org/w/index.php?title=Uluru</a> '+
+	// '(last visited June 22, 2009).</p>'+
+	// '</div>'+
+	// '</div>';
+
 }
 
-function createHeatmap(heatmapData, map){
-	// console.log(heatmapData);
+function createHeatmap(heatmapObj){
+	// console.log(heatmapObj);
 
+	// See Google Heatmap Documentation for options: https://developers.google.com/maps/documentation/javascript/examples/layer-heatmap
 	var heatmap = new google.maps.visualization.HeatmapLayer({
-		data: heatmapData,
-		dissipating: true,
+		data: heatmapObj.heatmapMarkers,
+		dissipating: heatmapObj.config.disFlag,
 		// radius:100,
-		map: map
+		// gradient:,
+		// maxIntensity: ,
+		// opacity: , //expressed as number between 0 - 1.
+		map: heatmapObj.map
 	});
 
 }
