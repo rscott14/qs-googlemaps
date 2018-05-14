@@ -46,7 +46,13 @@ function($) {'use strict';
 							label : "Initial fetch rows",
 							type : "number",
 							defaultValue : 1000
-						},
+						},		
+						initFetchWidth : {
+							ref : "qHyperCubeDef.qInitialDataFetch.0.qWidth",
+							label : "Initial fetch width",
+							type : "number",
+							defaultValue : 10
+						},		
 						googleAPIKey : {
 							ref: "properties.apikey",
 							label: "Google API Key",
@@ -96,7 +102,7 @@ function($) {'use strict';
 									label: "Center GeoPoint",
 									type: "string",
 									expression: "optional",
-									defaultValue: "{lat:41.85, lng: -87.64999999999998}"
+									defaultValue: '{\"lat\":41.85, \"lng\": -87.64999999999998}'
 								}
 							}
 						}
@@ -161,11 +167,24 @@ function($) {'use strict';
 	};
 });
 
-function getUniqueText(data, index){
+function getUniqueText(hCube, index){
 	var uniqueNames = [];
+
+	var data = hCube.qDataPages[0].qMatrix;
+
+	var dimLength = hCube.qDimensionInfo.length;
+	//If measure exists then use as weight
+	var hasWeight = (hCube.qMeasureInfo.length > 0)?true:false;
+
 	for(i = 0; i< data.length; i++){    
-		if(uniqueNames.indexOf(data[i][index].qText) === -1){
-			uniqueNames.push(data[i][index].qText);        
+		//if(uniqueNames.indexOf(data[i][index].qText) === -1){
+		//If the current row doesn't already exist in the return set then add it.
+		if(!uniqueNames.find(o => o.row === data[i][index].qText)){
+
+			uniqueNames.push({
+				"row":data[i][index].qText,
+				"weight":(hasWeight)?data[i][dimLength].qNum:1
+			});
 		}        
 	}
 	return uniqueNames;
@@ -217,18 +236,19 @@ function initMap(b2iConfig) {
 	for (let i = 0; i < dimLength; i++) {
 
 		//Only create a single unique marker
-		var uniques = getUniqueText(hCube.qDataPages[0].qMatrix,i);	
+		var uniques = getUniqueText(hCube,i);
 		var heatmapMarkers = []; //Array to hold all markers for heatmap.
 		uniques.forEach(function (marker,index){
 			try {
 
 				var markerObj = {};
-				if(marker.match(re)){
-					var array = JSON.parse(marker);
-					markerObj.lat = Number(array[0]);
-					markerObj.lng = Number(array[1]);
+				if(marker.row.match(re)){
+					var array = JSON.parse(marker.row);
+					//Note: Qlik GeoPoint is [lng,lat] format (opposite Google format)
+					markerObj.lat = Number(array[1]);
+					markerObj.lng = Number(array[0]);
 				} else {
-					markerObj = JSON.parse(marker);
+					markerObj = JSON.parse(marker.row);
 				}
 
 				//Do I need to validate formating?
@@ -243,7 +263,11 @@ function initMap(b2iConfig) {
 					case "heatmap":	
 						//Todo				
 						// mapData[mapData.length-1].weight = cell.qNum //Update with Measure data for a weight.
-						heatmapMarkers.push({location:new google.maps.LatLng(markerObj.lat, markerObj.lng)});						
+						var hasWeight = (measureLength > 0)?true:false;
+						heatmapMarkers.push({
+							"location":new google.maps.LatLng(markerObj.lat, markerObj.lng),
+							"weight":(hasWeight)?marker.weight:1
+						});						
 						break;	
 
 					case "cluster":
