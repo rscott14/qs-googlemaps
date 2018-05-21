@@ -72,6 +72,30 @@ function($) {'use strict';
 							}],
 							defaultValue: true
 						},
+						heatRadius: {
+							type: "number",
+							label: "Heatmap Radius",
+							ref: "properties.heatmapRadius",
+							defaultValue: 42
+						},
+						heatGradient: {
+							type: "string",
+							label: "Heatmap Gradient",
+							ref: "properties.heatmapGradient",
+							defaultValue: "default"
+						},
+						heatIntensity: {
+							type: "number",
+							label: "Heatmap Intensity",
+							ref: "properties.heatmapIntensity",
+							defaultValue: 25
+						},
+						heatOpacity: {
+							type: "number",
+							label: "Heatmap Opacity (0->1)",
+							ref: "properties.heatmapOpacity",
+							defaultValue: 0.4
+						},
 						mapTypeFlag: {
 							type: "string",
 							component: "dropdown",
@@ -122,6 +146,10 @@ function($) {'use strict';
 				"hCube" : layout.qHyperCube,
 				"mapID" : layout.qInfo.qId,
 				"disFlag" : layout.properties.heatmapDissipation,
+				"radius" : layout.properties.heatmapRadius,
+				"intensity" : layout.properties.heatmapIntensity,
+				"gradient" : layout.properties.heatmapGradient,
+				"opacity" : layout.properties.heatmapOpacity,
 				"mapType" : layout.properties.mapType,
 				"centerPoint" : layout.properties.centerPoint,
 				"zoom" : layout.properties.zoom
@@ -401,10 +429,10 @@ function createHeatmap(heatmapObj){
 	var heatmap = new google.maps.visualization.HeatmapLayer({
 		data: heatmapObj.heatmapMarkers,
 		dissipating: heatmapObj.config.disFlag,
-		// radius:100,
-		// gradient:,
-		// maxIntensity: ,
-		// opacity: , //expressed as number between 0 - 1.
+		 radius:heatmapObj.config.radius,
+		 //gradient:heatmapObj.config.gradient,
+		 maxIntensity: heatmapObj.config.intensity,
+		 opacity: heatmapObj.config.opacity, //expressed as number between 0 - 1.
 		map: heatmapObj.map
 	});
 
