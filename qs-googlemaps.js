@@ -258,8 +258,8 @@ function initMap(b2iConfig) {
 	var lastrow = 0;
 
 	//Geopoint Regular Expression match Format: [-#.#,-#.#]
-	var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
-
+	//** [lat,lng]var re = /\[[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?),\s*[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?)\]/g;
+	var re = /\[[-+]?(180(\.0+)?|((1[0-7]\d)|([1-9]?\d))(\.\d+)?),\s*[-+]?([1-8]?\d(\.\d+)?|90(\.0+)?)\]/g; //Qlik format [lng,lat]
 	//Loop through the dimensions and create markers
 	for (let i = 0; i < dimLength; i++) {
 
