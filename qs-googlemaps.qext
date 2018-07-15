@@ -3,7 +3,7 @@
 	"description" : "Qlik Sense Google Maps Implementation",
 	"icon" : "map",
 	"type" : "visualization",
-	"version": "1.0",
+	"version": "2.0",
 	"author" : "Ron Scott",
 	"homepage" : "https://github.com/rscott14/qs-googlemaps",
 	"keywords" : "qlik-sense, visualization",

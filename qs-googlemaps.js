@@ -5,10 +5,14 @@
 // Heatmap weight based on measures
 // 
 
+//Global map variable (facilitates syncronized zoom on maps)
+var b2iMaps = {};
+
+
 define([
-	"jquery"
+	"jquery","qlik"
 	], 
-function($) {'use strict';
+function($,qlik) {'use strict';
 	// $("<style>").html(cssContent).appendTo("head");
 	return {
 		initialProperties : {
@@ -70,13 +74,13 @@ function($) {'use strict';
 								value: false,
 								label: "Off"
 							}],
-							defaultValue: true
+							defaultValue: false
 						},
 						heatRadius: {
 							type: "number",
 							label: "Heatmap Radius",
 							ref: "properties.heatmapRadius",
-							defaultValue: 42
+							defaultValue: 1
 						},
 						heatGradient: {
 							type: "string",
@@ -88,7 +92,7 @@ function($) {'use strict';
 							type: "number",
 							label: "Heatmap Intensity",
 							ref: "properties.heatmapIntensity",
-							defaultValue: 25
+							defaultValue: 0
 						},
 						heatOpacity: {
 							type: "number",
@@ -127,6 +131,12 @@ function($) {'use strict';
 									type: "string",
 									expression: "optional",
 									defaultValue: '{\"lat\":41.85, \"lng\": -87.64999999999998}'
+								},
+								mapSync: {
+									ref: "properties.mapsync",
+									label: "Syncronize with me: Map ID",
+									type: "string",
+									expression: "optional"
 								}
 							}
 						}
@@ -141,6 +151,11 @@ function($) {'use strict';
 
 			var self = this;
 
+			var multiextension = false;
+			if ($('div[id^="map_"]').length > 0){
+				multiextension = true;
+			}
+
 //			console.log('HyperCube: ' + layout.qHyperCube);
 			var b2iConfig = {
 				"hCube" : layout.qHyperCube,
@@ -152,7 +167,9 @@ function($) {'use strict';
 				"opacity" : layout.properties.heatmapOpacity,
 				"mapType" : layout.properties.mapType,
 				"centerPoint" : layout.properties.centerPoint,
-				"zoom" : layout.properties.zoom
+				"mapsync": layout.properties.mapsync,
+				"zoom" : layout.properties.zoom,
+				"qlik" : qlik
 			};
 
 
@@ -176,9 +193,8 @@ function($) {'use strict';
 				$element.html(html);
 			}
 					
-
-			if(typeof google === 'undefined'){
-				console.log("Loading Google API");
+			if(typeof google === 'undefined' && !multiextension){
+				console.log("Loading Google API");					
 				$.getScript("https://maps.googleapis.com/maps/api/js?libraries=visualization&key=" + layout.properties.apikey)
 					.done(function (script, textStatus) {
 						console.log(textStatus);
@@ -189,7 +205,16 @@ function($) {'use strict';
 					});
 			} else {
 				console.log("Skipping Google API load (already loaded)...");
-				initMap(b2iConfig);
+				//Wait for google to load
+				function googleCheck() {
+					if(typeof google === 'undefined'){
+						setTimeout(googleCheck(),1000);
+					} else
+					{
+						initMap(b2iConfig);
+					}
+				}							
+				setTimeout(googleCheck,1000)
 			}
 		}
 	};
@@ -230,8 +255,27 @@ function initMap(b2iConfig) {
 	var us = {lat:37.09024, lng:-95.712891}; //?
 	var kansas = {lat:39, lng:-98};
 
+	//fix centerpoint formating for JSON parse
+	b2iConfig.centerPoint = b2iConfig.centerPoint.replace(/lng/g,'"lng"');
+	b2iConfig.centerPoint = b2iConfig.centerPoint.replace(/lat/g, '"lat"');
+	b2iConfig.centerPoint = b2iConfig.centerPoint.replace(/""/g, '"');
+
 	var mCenter = ((b2iConfig.centerPoint !== "")? JSON.parse(b2iConfig.centerPoint) : chicago);
 	var zoom = ((b2iConfig.zoom !== "")? b2iConfig.zoom : 4);
+
+	//Check for existing map/values
+	if(b2iMaps.hasOwnProperty(mapID)){
+		if(b2iConfig.mapsync && b2iMaps[b2iConfig.mapsync]){
+			zoom = b2iMaps[b2iConfig.mapsync].map.zoom;
+			mCenter = b2iMaps[b2iConfig.mapsync].map.center.toJSON();
+		} else {
+			zoom = b2iMaps[mapID].map.zoom;
+			mCenter = b2iMaps[mapID].map.center.toJSON();
+		}
+	} else
+	{
+		b2iMaps[mapID] = {};
+	}
 
 	//Build the Map ** Opportunity to cut down on GMap costs by only creating new map when dimensions of window change.
 	console.log('initMap: map_' + mapID );
@@ -240,6 +284,77 @@ function initMap(b2iConfig) {
 		// var map = new google.maps.Map(document.getElementById('map'), {
 		"zoom": zoom, //4
 		"center": mCenter
+	});
+	
+	//Global Map Object
+	b2iMaps[mapID].map = map;
+
+	//Implement map sync events
+	if (b2iConfig.mapsync && b2iMaps[b2iConfig.mapsync]){
+		console.log("Setting up Sync listeners");
+
+		map.addListener('center_changed', function (){
+			console.log("SyncCenter Fired.");
+			var mirrorMap = b2iMaps[b2iConfig.mapsync].map;
+			mirrorMap.setCenter(map.center.toJSON());
+			mirrorMap.setZoom(map.zoom);
+		});
+
+		map.addListener('zoom_changed', function () {
+			console.log("SyncZoomed Fired.");
+			var mirrorMap = b2iMaps[b2iConfig.mapsync].map;
+			mirrorMap.setCenter(map.center.toJSON());
+			mirrorMap.setZoom(map.zoom);
+		});
+	}
+
+	//If in Qlik Edit mode add an overlay with the ID
+	if (b2iConfig.qlik.navigation.getMode() === 'edit') {
+		var contentString = '<div id="m_id" class="firstHeading">' + mapID + '</div>';
+		var infoWindow = new google.maps.InfoWindow({
+			content: contentString,
+			position: b2iMaps[mapID].map.center.toJSON()
+		});
+
+		infoWindow.open(map);
+		b2iMaps[mapID].infoWindow = infoWindow;
+
+		map.addListener('center_changed', function () {
+			var infoWindow = b2iMaps[mapID].infoWindow;
+			infoWindow.setPosition(b2iMaps[mapID].map.center.toJSON());
+		});
+	};
+
+	//Can use map.panTo(position); to set the center of the map. or use map.setCenter(position)
+	//var bounds = {north:xx.xxxx,south:xx.xxx,east:xx.xxx,west:xx.xxx};
+	//Can also use map.fitBounds(bounds) to set a specific area
+	//Possibility to allways have zoom start at "world" view aka zoom: 3
+	//Center Point for world view is: {"lat":44.71405011478421,"lng":-12.859108050774012}
+
+	//Event Handlers for map
+	// map.addListener('center_changed', function(){
+	// 	var centerpoint = {
+	// 		"lat": map.center.lat(),
+	// 		"lng": map.center.lng()
+	// 	};
+	// 	//console.log("Center is now: ", JSON.stringify(centerpoint));
+	// 	b2iMaps[mapID].center = centerpoint;
+	// });
+
+	// map.addListener('zoom_changed', function () {
+	// 	//console.log("Zoom is now: ", map.zoom);
+	// 	b2iMaps[mapID].zoom = map.zoom;
+	// b2iHeatmap.set('radius',500);
+	// });
+
+	map.addListener('bounds_changed', function() {
+		var centerpoint = {
+			"lat": map.center.lat(),
+			"lng": map.center.lng()
+		};
+		console.log("Bounds Zoom: ", map.zoom);
+		console.log("Bounds center: " + JSON.stringify(centerpoint));
+		console.log("Bounds: " + JSON.stringify(map.getBounds().toJSON()));
 	});
 
 	// //render titles
@@ -315,7 +430,7 @@ function initMap(b2iConfig) {
 			var heatmapObj = {
 				"heatmapMarkers" : heatmapMarkers,
 				"config" : b2iConfig,
-				"map" : map
+				"mapID" : mapID
 			};
 
 			createHeatmap(heatmapObj);
@@ -433,9 +548,11 @@ function createHeatmap(heatmapObj){
 		 //gradient:heatmapObj.config.gradient,
 		 maxIntensity: heatmapObj.config.intensity,
 		 opacity: heatmapObj.config.opacity, //expressed as number between 0 - 1.
-		map: heatmapObj.map
+		map: b2iMaps[heatmapObj.mapID].map
 	});
 
+
+	b2iMaps[heatmapObj.mapID].heatmap = heatmap;
 }
 // Data Notes:
 // layout.qHyperCube.qDimensionInfo: dimensions used

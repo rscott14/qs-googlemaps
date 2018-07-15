@@ -17,6 +17,11 @@
                     ".vscode/**",
                     "archive/**"
                 ],
+                "button":{
+                    "text":"Deploy Local",
+                    "tooltip":"Click here to deploy to Qlik Extension Localally",
+                    "targets":["local"]
+                },
                 "deployOnSave": false //change to true if auto
             }
         ],
